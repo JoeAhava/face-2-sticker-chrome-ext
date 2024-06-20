@@ -1,12 +1,11 @@
 import axios from "axios";
-import { version } from "os";
 export const stickerize = async (
 	options: any,
 	apiKey: string,
 	img?: string,
 ) => {
 	return axios.post(
-		"/predictions",
+		"https://api.replicate.com/v1/predictions",
 		{
 			version:
 				"764d4827ea159608a07cdde8ddf1c6000019627515eb02b6b449695fd547e5ef",

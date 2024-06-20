@@ -26,7 +26,7 @@ export const getUploadedImg = async (imgURL: string, apiKey: string) => {
 			return false;
 		}
 	};
-	return fetch(imgURL.replace("https://api.replicate.com/v1", ""), {
+	return fetch(imgURL, {
 		headers: {
 			Authorization: `Bearer ${apiKey}`,
 			// "Content-Type": "image/*",

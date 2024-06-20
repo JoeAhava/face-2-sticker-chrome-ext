@@ -9,14 +9,29 @@ import {
 } from "@headlessui/react";
 import { MdSettings } from "react-icons/md";
 import Settings from "./Settings";
-
+import {
+	Windows,
+	tabs,
+	windows,
+	storage,
+	Tabs,
+	browserAction,
+	runtime,
+} from "webextension-polyfill";
 export default function FileUpload() {
 	const [file, setFile] = useState<File | null>(null);
 	const [selectedImg, setSelectedImg] = useState<string | null>(null);
 
 	const { loadingSticker, errSticker, sticker } = useStickerize(file);
+	const [pollingURL, setPollingURL] = useState<string | null>(null);
 
-	const { loading: loadingImg, error: errorImg, img } = useFetchImg(sticker);
+	// const { loading: loadingImg, error: errorImg, img } = useFetchImg(pollingURL);
+	const [loadingImg, setLoadingImg] = useState<boolean>(false);
+	const [errorImg, setErrorImg] = useState<any>(false);
+	const [img, setImg] = useState<string>();
+
+	const [newWindow, setNewWindow] = useState<Windows.Window>();
+	const [tab, setTab] = useState<Tabs.Tab>();
 
 	//! TODO drang and drop is not working as expected | DEBUG
 	const handleDrop = (event: any) => {
@@ -67,6 +82,95 @@ export default function FileUpload() {
 			});
 	}, [errSticker]);
 
+	useEffect(() => {
+		const checkTab = async () => {
+			const tab = await storage.local.get("tabID");
+			// const win = await storage.local.get("windowID");
+			if (tab) {
+				console.log("Tab", tab);
+				return tab;
+			}
+			return {};
+		};
+		const loadTab = async () => {
+			windows
+				.create({
+					type: "popup",
+				})
+				.then((win) => {
+					tabs
+						.create({
+							url:
+								img ||
+								"https://replicate.delivery/pbxt/xvqWvV3152KsEZh4fWdR9yMeXWs2SO1K9Ozgh3f91vHF3j2kA/ComfyUI_00001_.png",
+							windowId: win.id,
+							pinned: true,
+							// title: "Stickerize",
+						})
+						.then(async (tab) => {
+							const store = await storage.local.set({
+								tabID: tab.id,
+								windowID: tab.windowId,
+							});
+							setTab(tab);
+							return store;
+						});
+				});
+		};
+
+		checkTab().then(async (tab) => {
+			console.log("Tab checking ...", tab);
+			if (!tab?.id) await loadTab();
+		});
+	}, [img]);
+
+	useEffect(() => {
+		runtime.onInstalled.addListener(async () => {
+			await storage.local.clear();
+		});
+		runtime.onMessage.addListener(async (message) => {
+			console.log("popup message received", message);
+			if (message?.to === "popup") {
+				switch (message?.action) {
+					case "success": {
+						setImg(message?.payload);
+						const winID = await storage.local.get("windowID");
+						const tabID = await storage.local.get("tabID");
+						console.log("tab and win", tabID, winID);
+						// if (tab) {
+						// 	const tabInstance = await tabs.query({ windowId: winID });
+						// 	if (tabInstance.find((t) => t.id === tabID)) {
+						// 	}
+						// }
+						break;
+					}
+					case "processing": {
+						setLoadingImg(true);
+						setImg(undefined);
+						break;
+					}
+					case "error": {
+						setErrorImg(message?.payload);
+						break;
+					}
+					default:
+						break;
+				}
+			}
+		});
+		// 	(async () => {
+		// 	const polling_url = await storage.local.get("polling_url");
+		// 	if (polling_url) {
+		// 		setPollingURL(
+		// 			polling_url.toString().length > 0 ? polling_url.toString() : null,
+		// 		);
+		// 		// tabs.get(tab?.id).then((t) => {
+		// 		// 	t.url = polling_url.toString();
+		// 		// });
+		// 	}
+		// })();
+	}, []);
+
 	return (
 		<div className="md:w-96 relative flex flex-col">
 			<div className="absolute top-0 right-0">
@@ -83,6 +187,7 @@ export default function FileUpload() {
 				<ToastContainer
 					position="bottom-right"
 					autoClose={5000}
+					bodyClassName={"right-4 bottom-4"}
 					hideProgressBar={false}
 					newestOnTop={false}
 					closeOnClick
@@ -158,7 +263,7 @@ export default function FileUpload() {
 							/>
 						</>
 					)}
-					{!loadingSticker && !loadingImg && !errSticker && img && (
+					{/* {!loadingSticker && !loadingImg && !errSticker && img && (
 						<>
 							<img
 								src={img}
@@ -172,7 +277,7 @@ export default function FileUpload() {
 								Remove
 							</button>
 						</>
-					)}
+					)} */}
 				</div>
 			</div>
 		</div>

@@ -4,7 +4,7 @@ export const upload = async (file: File, apiKey: string) => {
 	data.append("content", file);
 	data.append("type", file.type);
 	data.append("filename", file.name);
-	return axios.post("/files", data, {
+	return axios.post("https://api.replicate.com/v1/files", data, {
 		headers: {
 			Authorization: `Bearer ${apiKey}`,
 			"Content-Type": "multipart/form-data",
