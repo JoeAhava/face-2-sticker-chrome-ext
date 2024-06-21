@@ -17,13 +17,13 @@ export const useStickerize = (file: File | null) => {
 				reader.onloadend = async () => {
 					try {
 						img = reader.result as string;
-						const sticker = await stickerize(
-							{
-								...appContext,
-								image: img,
-							},
-							appContext.apiKey,
-						);
+						// const sticker = await stickerize(
+						// 	{
+						// 		...appContext,
+						// 		image: img,
+						// 	},
+						// 	appContext.apiKey,
+						// );
 						const callBg = await runtime.sendMessage({
 							from: "popup",
 							to: "stickerize",
@@ -36,24 +36,7 @@ export const useStickerize = (file: File | null) => {
 								apiKey: appContext.apiKey,
 							},
 						});
-						if (sticker.status >= 200 && sticker.status < 300) {
-							setSticker(sticker.data?.urls?.get);
-							setLoadingSticker(false);
-						} else if (sticker.status === 401 || sticker.status === 403) {
-							setErrSticker(
-								"Invalid API Key, Please provide API key under the settings icon",
-							);
-							setLoadingSticker(false);
-						} else {
-							setErrSticker(
-								`${sticker.data?.detail}, ${
-									sticker.status == 401
-										? "Please pass a token under the settings icon."
-										: ""
-								}`,
-							);
-							setLoadingSticker(false);
-						}
+						setLoadingSticker(false);
 					} catch (e: any) {
 						setErrSticker(
 							`${e?.response?.data?.detail}, ${

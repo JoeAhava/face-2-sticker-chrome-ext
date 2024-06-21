@@ -19,7 +19,7 @@ type Message = {
 export function init() {
 	runtime.onMessage.addListener(async (message: Message) => {
 		console.log("worker message received", message);
-		if (message.to === "stickerize") {
+		if (message.to === "stickerize" && message.action === "stickerize") {
 			console.log("Stickerize Called");
 			try {
 				const response = await stickerize(
@@ -81,7 +81,7 @@ export function init() {
 					from: "stickerize",
 					to: "popup",
 					action: "error",
-					payload: err.response,
+					payload: err.response || err.message,
 				});
 			}
 		}

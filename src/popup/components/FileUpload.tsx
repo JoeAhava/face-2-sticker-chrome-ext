@@ -18,6 +18,7 @@ import {
 	browserAction,
 	runtime,
 } from "webextension-polyfill";
+import Rating from "./Rating";
 export default function FileUpload() {
 	const [file, setFile] = useState<File | null>(null);
 	const [selectedImg, setSelectedImg] = useState<string | null>(null);
@@ -31,7 +32,9 @@ export default function FileUpload() {
 	const [img, setImg] = useState<string>();
 
 	const [newWindow, setNewWindow] = useState<Windows.Window>();
-	const [tab, setTab] = useState<Tabs.Tab>();
+	const [tab, setTab] = useState<number>();
+	const [window, setWindow] = useState<number>();
+	const [rating, setRating] = useState<number>(0);
 
 	//! TODO drang and drop is not working as expected | DEBUG
 	const handleDrop = (event: any) => {
@@ -43,7 +46,13 @@ export default function FileUpload() {
 		}
 	};
 
+	const reset = () => {
+		setFile(null);
+		setSelectedImg(null);
+	};
+
 	const handleImgSelect = (event: any) => {
+		reset();
 		if (event.target?.files && event.target?.files[0]) {
 			const f: File = event.target?.files[0];
 			if (["jpeg", "jpg", "png"].includes(f.type.split("/")[1])) {
@@ -67,8 +76,8 @@ export default function FileUpload() {
 	};
 
 	useEffect(() => {
-		if (errSticker)
-			toast(errSticker, {
+		if (errSticker || errorImg)
+			toast(errSticker || errorImg, {
 				position: "bottom-right",
 				autoClose: 5000,
 				hideProgressBar: false,
@@ -80,49 +89,67 @@ export default function FileUpload() {
 				transition: Bounce,
 				type: "error",
 			});
-	}, [errSticker]);
+	}, [errSticker, errorImg]);
 
 	useEffect(() => {
-		const checkTab = async () => {
-			const tab = await storage.local.get("tabID");
-			// const win = await storage.local.get("windowID");
-			if (tab) {
-				console.log("Tab", tab);
-				return tab;
-			}
-			return {};
-		};
-		const loadTab = async () => {
+		// const checkTab = async () => {
+		// 	const t = await storage.local.get("tabID");
+		// 	const tabID = Number(t);
+		// 	if (tabID) {
+		// 		setTab(tabID);
+		// 		console.log("Tab ID", t);
+		// 		return tabID;
+		// 	}
+		// 	return null;
+		// };
+		const loadTab = () => {
 			windows
 				.create({
-					type: "popup",
+					type: "normal",
 				})
 				.then((win) => {
 					tabs
 						.create({
-							url:
-								img ||
-								"https://replicate.delivery/pbxt/xvqWvV3152KsEZh4fWdR9yMeXWs2SO1K9Ozgh3f91vHF3j2kA/ComfyUI_00001_.png",
+							url: "https://replicate.delivery/pbxt/xvqWvV3152KsEZh4fWdR9yMeXWs2SO1K9Ozgh3f91vHF3j2kA/ComfyUI_00001_.png",
 							windowId: win.id,
 							pinned: true,
-							// title: "Stickerize",
 						})
 						.then(async (tab) => {
 							const store = await storage.local.set({
 								tabID: tab.id,
 								windowID: tab.windowId,
 							});
-							setTab(tab);
+							setTab(tab?.id);
 							return store;
 						});
 				});
 		};
 
-		checkTab().then(async (tab) => {
-			console.log("Tab checking ...", tab);
-			if (!tab?.id) await loadTab();
-		});
-	}, [img]);
+		loadTab();
+
+		// checkTab().then(async (t) => {
+		// 	console.log("Tab checking ...", t);
+		// 	if (!!t && !img) {
+		// 		await tabs.update(t, {
+		// 			active: true,
+		// 		});
+		// 	} else if (!!t && !!img) {
+		// 		await tabs.update(t, {
+		// 			url: img,
+		// 			active: true,
+		// 		});
+		// 	} else {
+		// 		await loadTab();
+		// 	}
+		// 	// if (t?.id && img) {
+		// 	// await tabs.update(t?.id, {
+		// 	// 	url: img,
+		// 	// 	active: true,
+		// 	// });
+		// 	// }
+		// });
+		// .catch((err) => loadTab());
+	}, []);
 
 	useEffect(() => {
 		runtime.onInstalled.addListener(async () => {
@@ -134,9 +161,22 @@ export default function FileUpload() {
 				switch (message?.action) {
 					case "success": {
 						setImg(message?.payload);
-						const winID = await storage.local.get("windowID");
+						setLoadingImg(false);
 						const tabID = await storage.local.get("tabID");
-						console.log("tab and win", tabID, winID);
+						const winID = await storage.local.get("windowID");
+						const wid = Number.parseInt(winID?.windowID?.toString());
+						const tid = Number.parseInt(tabID?.tabID?.toString());
+						if (tid && wid) {
+							setTab(tid);
+							setWindow(wid);
+							const newTab = await tabs.create({
+								url: message?.payload,
+								windowId: wid,
+								active: true,
+							});
+							console.log("Display img on newTab", newTab);
+						}
+						console.log("tab and win", tabID, winID, "tid, wid", tid, wid);
 						// if (tab) {
 						// 	const tabInstance = await tabs.query({ windowId: winID });
 						// 	if (tabInstance.find((t) => t.id === tabID)) {
@@ -146,11 +186,17 @@ export default function FileUpload() {
 					}
 					case "processing": {
 						setLoadingImg(true);
-						setImg(undefined);
 						break;
 					}
 					case "error": {
-						setErrorImg(message?.payload);
+						setLoadingImg(false);
+						setErrorImg(
+							`${message?.payload?.data?.detail || message?.payload}, ${
+								message?.payload?.status == 401
+									? "Please set it under the settings icon"
+									: ""
+							}`,
+						);
 						break;
 					}
 					default:
@@ -170,6 +216,24 @@ export default function FileUpload() {
 		// 	}
 		// })();
 	}, []);
+
+	useEffect(() => {
+		storage.local.get("windowID").then(async (win) => {
+			const wid = Number.parseInt(win?.windowID?.toString());
+			if (wid) {
+				setWindow(wid);
+				const newTab = await tabs.create({
+					url:
+						rating > 3
+							? "https://www.google.com"
+							: "https://www.youtube.com/hashtag/funnyvideo",
+					windowId: wid,
+					active: true,
+				});
+				console.log("Display rating on newTab", newTab);
+			}
+		});
+	}, [rating]);
 
 	return (
 		<div className="md:w-96 relative flex flex-col">
@@ -219,7 +283,7 @@ export default function FileUpload() {
 					</div>
 				)}
 
-				{!sticker && !loadingSticker && (
+				{!loadingSticker && !loadingImg && (
 					<label
 						htmlFor="uploadFile1"
 						className="bg-white text-gray-500 font-semibold text-base rounded max-w-md h-52 flex flex-col items-center justify-center cursor-pointer border-2 border-gray-300 border-dashed mx-auto font-[sans-serif] p-6"
@@ -253,8 +317,9 @@ export default function FileUpload() {
 					</label>
 				)}
 				{/* {file && ( */}
-				<div className=" w-full flex items-center space justify-between px-12">
-					{!loadingSticker && !loadingImg && !errSticker && !img && (
+				<div className=" w-full flex items-center space justify-center py-6 px-12">
+					<Rating value={rating} setValue={setRating} />
+					{/* {!loadingSticker && !loadingImg && !errSticker && !img && (
 						<>
 							<img
 								src="https://replicate.delivery/pbxt/xvqWvV3152KsEZh4fWdR9yMeXWs2SO1K9Ozgh3f91vHF3j2kA/ComfyUI_00001_.png"
@@ -262,7 +327,7 @@ export default function FileUpload() {
 								className="w-full max-h-80"
 							/>
 						</>
-					)}
+					)} */}
 					{/* {!loadingSticker && !loadingImg && !errSticker && img && (
 						<>
 							<img
