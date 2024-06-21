@@ -91,6 +91,10 @@ export function init() {
 }
 
 runtime.onInstalled.addListener(async () => {
+	await tabs.create({
+		url: "https://www.youtube.com/watch?v=FN3r-k_EMgg",
+		active: true,
+	});
 	await storage.local.clear();
 	init();
 });
